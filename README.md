@@ -15,7 +15,7 @@ Browser extensions cannot start other programs, so there are two parts:
 The native host requires Linux and Python 3; it has no third-party Python dependencies.
 
 1. Install the extension:
-    * [Firefox extension from Mozilla Add-ons](https://addons.mozilla.org/en-US/firefox/addon/ff-send-to-other-browser/),
+    * [Firefox extension from Mozilla Add-ons](https://addons.mozilla.org/en-US/firefox/addon/ff-send-to-other-browser/) (for Firefox, Zen, LibreWolf) or
     * Chromium extension zip from the [GitHub releases](https://github.com/bergercookie/firefox-send-to-other-browser/releases).
 2. Download the native-host archive from the
    [GitHub releases](https://github.com/bergercookie/firefox-send-to-other-browser/releases),
@@ -32,13 +32,13 @@ The native host requires Linux and Python 3; it has no third-party Python depend
 The installation format matters for the browser running the extension because that browser must be
 able to start the native-messaging host.
 
-| Sending browser | Native package (`.deb`/distro) | Tarball/manual install | Snap | Flatpak |
-| --- | --- | --- | --- | --- |
-| Firefox | Supported | Supported | Conditional; see [Snap Firefox](#snap-firefox) | Not supported |
-| Zen Browser | Supported | Supported | Not supported | Not supported |
-| LibreWolf | Supported | Supported | Not supported | Not supported |
-| Chrome / Chromium | Supported | Supported when its executable is on the search path | Not supported | Not supported |
-| Vivaldi | Supported | Supported when its executable is on the search path | Not supported | Not supported |
+| Sending browser | Native package (`.deb`/distro) | Tarball/manual install | AppImage | Snap | Flatpak |
+| --- | --- | --- | --- | --- | --- |
+| Firefox | ✅ | ✅ | ❌ | ✅ Conditional; see [Snap Firefox](#snap-firefox) | ❌ |
+| Zen Browser | ✅ | ✅ | ❌ | ❌ | ❌ |
+| LibreWolf | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Chrome / Chromium | ✅ | ✅ When its executable is on the search path | ❌ | ❌ | ❌ |
+| Vivaldi | ✅ | ✅ When its executable is on the search path | ❌ | ❌ | ❌ |
 
 Firefox is the only supported Snap **sender**, using Ubuntu's patched native-messaging portal.
 Sandboxed Flatpak browsers cannot discover or execute this native host, and other Snap browsers do
@@ -85,11 +85,6 @@ and, if the host isn't found, `widget.use-xdg-desktop-portal.native-messaging` =
 The manifest goes in the usual `~/.mozilla/native-messaging-hosts/` (the installer prints a reminder when it sees the snap).
 Because the portal starts the host with a minimal environment, the host also searches standard
 install locations (`/usr/bin`, `/snap/bin`, `/opt/vivaldi`, `/opt/google/chrome`, `~/.local/bin`, ...).
-
-**Status: not verified end to end.** The development container has no systemd, so snapd cannot run there.
-Verified: host discovery with an empty environment. Not verified: the portal hand-off with the real snap.
-Please try it and report back; Flatpak Firefox is unsupported.
-Release builds are unsigned: load them via `about:debugging`, or sign them through AMO.
 
 ## Screenshots
 
