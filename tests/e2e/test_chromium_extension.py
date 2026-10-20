@@ -96,6 +96,8 @@ def chromium(
                 f"--load-extension={extension}",
             ],
         )
+        context.set_default_timeout(10_000)
+        context.set_default_navigation_timeout(10_000)
         yield context
         context.close()
 
