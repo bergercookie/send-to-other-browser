@@ -1,8 +1,6 @@
 """End-to-end: Chromium-family extension sends through the native host to Firefox."""
 
-import glob
 import os
-import shutil
 import stat
 import subprocess
 import sys
@@ -14,29 +12,12 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
+from playwright.sync_api import BrowserContext
+from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[2]
 EXTENSION_ID = "loagchgjndmjgeopkhjlamacnkbenajk"
 POPUP_URL = f"chrome-extension://{EXTENSION_ID}/popup/popup.html"
-
-
-def find_browser() -> str | None:
-    configured = [os.environ.get(name) for name in ("CHROME_BIN", "VIVALDI_BIN", "CHROMIUM_BIN")]
-    on_path = [shutil.which(name) for name in ("google-chrome", "vivaldi", "chromium")]
-    bundled = glob.glob("/opt/pw-browsers/chromium-*/chrome-linux*/chrome")
-    return next((path for path in [*configured, *on_path, *bundled] if path), None)
-
-
-BROWSER = find_browser()
-DRIVER = os.environ.get("CHROMEDRIVER") or shutil.which("chromedriver")
-pytestmark = pytest.mark.skipif(
-    not BROWSER or not DRIVER, reason="needs Chrome/Vivaldi and chromedriver"
-)
 
 FAKE_BROWSER = """#!/bin/sh
 printf '%s\\n' "$@" >> "$E2E_LOG_DIR/firefox.log"
@@ -57,8 +38,8 @@ class _Page(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def chromium_environment(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> Iterator[tuple[str, Path]]:
+    tmp_path: Path,
+) -> Iterator[tuple[str, Path, dict[str, str | float | bool]]]:
     home, bin_dir, log_dir = tmp_path / "home", tmp_path / "bin", tmp_path / "logs"
     for directory in (home, bin_dir, log_dir):
         directory.mkdir()
@@ -84,28 +65,39 @@ def chromium_environment(
             capture_output=True,
             env={**os.environ, "PYTHONPATH": str(ROOT / "host")},
         )
-    monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("SEND_TO_OTHER_BROWSER_PATH", str(bin_dir))
-    monkeypatch.setenv("E2E_LOG_DIR", str(log_dir))
+    browser_env: dict[str, str | float | bool] = {
+        **os.environ,
+        "HOME": str(home),
+        "SEND_TO_OTHER_BROWSER_PATH": str(bin_dir),
+        "E2E_LOG_DIR": str(log_dir),
+    }
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Page)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{server.server_port}", log_dir
+    yield f"http://127.0.0.1:{server.server_port}", log_dir, browser_env
     server.shutdown()
 
 
 @pytest.fixture
-def chromium(chromium_environment: tuple[str, Path]) -> Iterator[webdriver.Chrome]:
-    assert BROWSER is not None
-    assert DRIVER is not None
-    options = Options()
-    options.binary_location = BROWSER
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument(f"--disable-extensions-except={ROOT / 'extension-chromium'}")
-    options.add_argument(f"--load-extension={ROOT / 'extension-chromium'}")
-    driver = webdriver.Chrome(options=options, service=Service(executable_path=DRIVER))
-    yield driver
-    driver.quit()
+def chromium(
+    chromium_environment: tuple[str, Path, dict[str, str | float | bool]], tmp_path: Path
+) -> Iterator[BrowserContext]:
+    extension = ROOT / "extension-chromium"
+    _, _, browser_env = chromium_environment
+    with sync_playwright() as playwright:
+        if not Path(playwright.chromium.executable_path).is_file():
+            pytest.skip("needs Playwright Chromium (run: uv run playwright install chromium)")
+        context = playwright.chromium.launch_persistent_context(
+            tmp_path / "profile",
+            channel="chromium",
+            headless=True,
+            env=browser_env,
+            args=[
+                f"--disable-extensions-except={extension}",
+                f"--load-extension={extension}",
+            ],
+        )
+        yield context
+        context.close()
 
 
 def wait_for_log(path: Path) -> list[str]:
@@ -118,24 +110,22 @@ def wait_for_log(path: Path) -> list[str]:
 
 
 def test_chromium_extension_sends_selected_tabs_to_firefox(
-    chromium: webdriver.Chrome, chromium_environment: tuple[str, Path]
+    chromium: BrowserContext,
+    chromium_environment: tuple[str, Path, dict[str, str | float | bool]],
 ) -> None:
-    base_url, log_dir = chromium_environment
+    base_url, log_dir, _ = chromium_environment
     urls = [f"{base_url}/one", f"{base_url}/two"]
     for url in urls:
-        chromium.switch_to.new_window("tab")
-        chromium.get(url)
-    chromium.get(POPUP_URL)
-    tabs = chromium.execute_async_script(
-        "const done = arguments[arguments.length - 1]; chrome.tabs.query({}).then(done);"
-    )
+        page = chromium.new_page()
+        page.goto(url)
+    extension_page = chromium.new_page()
+    extension_page.goto(POPUP_URL)
+    tabs = extension_page.evaluate("() => chrome.tabs.query({})")
     tab_ids = [tab["id"] for tab in tabs if tab.get("url") in urls]
-    chromium.get(f"{POPUP_URL}?tabIds={','.join(map(str, tab_ids))}")
-    button = WebDriverWait(chromium, 10).until(
-        lambda driver: driver.find_element(By.CSS_SELECTOR, "button[data-browser=firefox]")
-    )
+    popup = chromium.new_page()
+    popup.goto(f"{POPUP_URL}?tabIds={','.join(map(str, tab_ids))}")
+    button = popup.locator("button[data-browser=firefox]")
+    button.wait_for()
     button.click()
-    WebDriverWait(chromium, 10).until(
-        lambda driver: "Sent 2 tabs" in driver.find_element(By.ID, "status").text
-    )
+    popup.locator("#status").filter(has_text="Sent 2 tabs").wait_for()
     assert wait_for_log(log_dir / "firefox.log") == urls

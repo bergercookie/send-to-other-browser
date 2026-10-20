@@ -30,6 +30,7 @@ jobs:
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v6
+      - run: uv run playwright install --with-deps chromium
       - uses: browser-actions/setup-firefox@v1
       - uses: browser-actions/setup-geckodriver@latest
       - run: just check-version "$GITHUB_REF_NAME"

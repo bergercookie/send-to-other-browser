@@ -28,15 +28,17 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 
+from scripts.browser_binaries import firefox_binary
+
 ROOT = Path(__file__).resolve().parents[2]
 EXTENSION_ID = "send-to-other-browser@bergercookie"
 EXTENSION_UUID = str(uuid.uuid4())
 POPUP_URL = f"moz-extension://{EXTENSION_UUID}/popup/popup.html"
 
-FIREFOX = os.environ.get("FIREFOX_BIN") or shutil.which("firefox")
+FIREFOX = firefox_binary()
 GECKODRIVER = os.environ.get("GECKODRIVER") or shutil.which("geckodriver")
 pytestmark = pytest.mark.skipif(
-    not FIREFOX or not GECKODRIVER, reason="needs Firefox and geckodriver"
+    not FIREFOX or not GECKODRIVER, reason="needs a native Firefox executable and geckodriver"
 )
 
 FAKE_BROWSER = """#!/bin/sh
