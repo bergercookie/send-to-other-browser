@@ -25,10 +25,13 @@ lint:
     uv run pre-commit run --all-files
 
 # Unit tests for the native host (python) and the extension logic (node).
-test-unit: test-host test-extension
+test-unit: test-host test-scripts test-extension
 
 test-host:
     uv run pytest tests/host -v
+
+test-scripts:
+    uv run pytest tests/scripts -v
 
 test-extension:
     node --test tests/extension/*.test.mjs
@@ -62,6 +65,7 @@ run:
 
 # Regenerate docs/screenshots/*.png (README embeds them).
 screenshots:
+    uv run playwright install chromium
     uv run python scripts/screenshots.py
 
 # --- packaging ---------------------------------------------------------------
@@ -80,7 +84,7 @@ check-version tag:
         exit 1
     fi
 
-# Build dist/: Firefox and Chromium extension zips and the native host tarball. Optionally override
+# Build dist/: Firefox and Chrome Web Store zips and the native host tarball. Optionally override
 # (used for nightlies, e.g. `just package 0.1.0.42`).
 package override="":
     #!/usr/bin/env bash
@@ -88,20 +92,25 @@ package override="":
     version="{{override}}"
     version="${version:-$(just version)}"
     rm -rf build dist
-    mkdir -p build/extension build/extension-chromium build/host dist
+    mkdir -p build/extension build/extension-chromium-web-store build/host dist
     cp -r extension/. build/extension/
-    cp -r extension-chromium/. build/extension-chromium/
+    cp -r extension-chromium/. build/extension-chromium-web-store/
     python3 - "$version" <<'PY'
     import json, sys
-    for path in ("build/extension/manifest.json", "build/extension-chromium/manifest.json"):
+    for path in (
+        "build/extension/manifest.json",
+        "build/extension-chromium-web-store/manifest.json",
+    ):
         manifest = json.load(open(path))
         manifest["version"] = sys.argv[1]
+        if "web-store" in path:
+            manifest.pop("key", None)
         json.dump(manifest, open(path, "w"), indent=2)
     PY
     {{web_ext}} build --source-dir build/extension --artifacts-dir dist \
         --filename "send-to-other-browser-extension-${version}.zip" --overwrite-dest
-    (cd build/extension-chromium && python3 -m zipfile -c \
-        "../../dist/send-to-other-browser-chromium-${version}.zip" .)
+    (cd build/extension-chromium-web-store && python3 -m zipfile -c \
+        "../../dist/send-to-other-browser-chrome-web-store-${version}.zip" .)
     cp host/send_to_other_browser.py host/install.py build/host/
     tar -C build -czf "dist/send-to-other-browser-host-${version}.tar.gz" host
     ls -l dist

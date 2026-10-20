@@ -31,9 +31,23 @@ jobs:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v6
       - uses: browser-actions/setup-firefox@v1
+      - uses: browser-actions/setup-geckodriver@latest
       - run: just check-version "$GITHUB_REF_NAME"
       - run: just ci
       - run: just package
+      - name: Publish Firefox extension to AMO
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          npx --yes web-ext@8 sign \
+            --source-dir extension \
+            --artifacts-dir dist \
+            --channel listed \
+            --api-key "$AMO_JWT_ISSUER" \
+            --api-secret "$AMO_JWT_SECRET" \
+            --approval-timeout 0 \
+            --no-input
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true

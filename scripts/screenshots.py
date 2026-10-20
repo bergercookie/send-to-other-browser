@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regenerate the screenshots embedded in README.md.
 
-Starts headless Firefox with the extension loaded and the real native host wired
+Starts headless Chromium with the extension loaded and the real native host wired
 to fake target browsers (they only record the launch), then captures the popup in
 the three states the docs show:
 
@@ -9,36 +9,33 @@ the three states the docs show:
     popup-sent.png      after "Send to Vivaldi"
     popup-error.png     no native host registered
 
-Requires Firefox ($FIREFOX_BIN picks the binary, otherwise PATH) and selenium.
+Requires Playwright's Chromium build (``uv run playwright install chromium``).
 Run it through `just screenshots`.
 """
 
 import argparse
-import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import threading
-import uuid
 from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.firefox.service import Service
-from selenium.webdriver.support.ui import WebDriverWait
+from PIL import Image
+from playwright.sync_api import BrowserContext
+from playwright.sync_api import Page
+from playwright.sync_api import Playwright
+from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "host"))
+from install import CHROMIUM_EXTENSION_ID  # noqa: E402
 from install import HOST_NAME  # noqa: E402
 
-EXTENSION_ID = "send-to-other-browser@bergercookie"
-EXTENSION_UUID = str(uuid.uuid4())
-POPUP_URL = f"moz-extension://{EXTENSION_UUID}/popup/popup.html"
+POPUP_URL = f"chrome-extension://{CHROMIUM_EXTENSION_ID}/popup/popup.html"
 
 # Body width the popup gets in a real popup panel (popup.css min-width). Opened
 # in a tab instead, the body would stretch across the whole window, so the width
@@ -47,7 +44,8 @@ POPUP_WIDTH = 260
 WINDOW_SIZE = (900, 800)
 FAKE_BROWSERS = ("vivaldi", "google-chrome", "chromium", "brave-browser", "microsoft-edge")
 TAB_COUNT = 3
-WAIT = 20
+WAIT = 20_000
+
 
 STYLE_JS = """
 const width = arguments[0];
@@ -77,12 +75,11 @@ class _Page(BaseHTTPRequestHandler):
         pass
 
 
-def make_home(base: Path) -> Path:
+def make_home(base: Path) -> tuple[Path, dict[str, str | float | bool]]:
     """Throwaway $HOME with fake browser executables and the host registered."""
     home = base / "home"
-    (home / ".mozilla" / "native-messaging-hosts").mkdir(parents=True)
     bin_dir = home / "bin"
-    bin_dir.mkdir()
+    bin_dir.mkdir(parents=True)
     for name in FAKE_BROWSERS:
         exe = bin_dir / name
         exe.write_text("#!/bin/sh\nexit 0\n")
@@ -91,94 +88,67 @@ def make_home(base: Path) -> Path:
         [
             sys.executable,
             str(ROOT / "host" / "install.py"),
+            "--browser",
+            "chromium",
             "--dest",
-            str(home / ".mozilla" / "native-messaging-hosts"),
+            str(home / ".config" / "chromium" / "NativeMessagingHosts"),
         ],
         check=True,
         capture_output=True,
     )
-    os.environ["HOME"] = str(home)
-    os.environ["SEND_TO_OTHER_BROWSER_PATH"] = str(bin_dir)
-    return home
+    env: dict[str, str | float | bool] = dict(os.environ)
+    env["HOME"] = str(home)
+    env["SEND_TO_OTHER_BROWSER_PATH"] = str(bin_dir)
+    return home, env
 
 
-def start_firefox() -> webdriver.Firefox:
-    options = Options()
-    options.add_argument("-headless")
-    # Pin the extension host so the popup can be opened from chrome context, and
-    # render at 2x so the committed PNGs stay crisp on HiDPI screens.
-    options.set_preference(
-        "extensions.webextensions.uuids", json.dumps({EXTENSION_ID: EXTENSION_UUID})
-    )
-    options.set_preference("layout.css.devPixelsPerPx", "2")
-    if os.environ.get("FIREFOX_BIN"):
-        options.binary_location = os.environ["FIREFOX_BIN"]
-    driver = webdriver.Firefox(
-        options=options, service=Service(service_args=["--allow-system-access"])
-    )
-    driver.install_addon(str(ROOT / "extension"), temporary=True)
-    driver.set_window_size(*WINDOW_SIZE)
-    return driver
-
-
-def open_extension_page(driver: webdriver.Firefox, url: str) -> None:
-    """WebDriver refuses to navigate to moz-extension:// URLs, so open the tab
-    from chrome context, then wait for it to load."""
-    before = set(driver.window_handles)
-    with driver.context(driver.CONTEXT_CHROME):
-        driver.execute_script(
-            "const tab = gBrowser.addTab(arguments[0],"
-            " {triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal()});"
-            " gBrowser.selectedTab = tab;",
-            url,
-        )
-    handle = (
-        WebDriverWait(driver, WAIT).until(lambda d: (set(d.window_handles) - before) or False).pop()
-    )
-    driver.switch_to.window(handle)
-    WebDriverWait(driver, WAIT).until(
-        lambda d: (
-            d.current_url.startswith("moz-extension://")
-            and d.execute_script("return document.readyState") == "complete"
-        )
+def start_chromium(
+    playwright: Playwright, workspace: Path, env: dict[str, str | float | bool]
+) -> BrowserContext:
+    extension = ROOT / "extension-chromium"
+    return playwright.chromium.launch_persistent_context(
+        workspace / "profile",
+        channel="chromium",
+        headless=True,
+        viewport={"width": WINDOW_SIZE[0], "height": WINDOW_SIZE[1]},
+        device_scale_factor=2,
+        env=env,
+        args=[
+            f"--disable-extensions-except={extension}",
+            f"--load-extension={extension}",
+        ],
     )
 
 
-def open_popup(driver: webdriver.Firefox, base: str) -> None:
+def open_popup(context: BrowserContext, base: str) -> Page:
     """Open TAB_COUNT web tabs, then the popup with exactly those pre-selected."""
     for i in range(TAB_COUNT):
-        driver.switch_to.new_window("tab")
-        driver.get(f"{base}/tab-{i + 1}")
+        page = context.new_page()
+        page.goto(f"{base}/tab-{i + 1}")
     # A first popup visit (in a tab) is the only place the extension's tab ids
     # are visible; the second one gets them via ?tabIds=, like the e2e tests.
-    open_extension_page(driver, POPUP_URL)
-    tabs = driver.execute_async_script(
-        "const done = arguments[arguments.length - 1];"
-        "browser.tabs.query({currentWindow: true}).then(done);"
-    )
+    page = context.new_page()
+    page.goto(POPUP_URL)
+    tabs = page.evaluate("() => chrome.tabs.query({currentWindow: true})")
     ids = [t["id"] for t in tabs if t["url"].startswith(("http://", "https://"))]
-    open_extension_page(driver, f"{POPUP_URL}?tabIds={','.join(map(str, ids))}")
+    popup = context.new_page()
+    popup.goto(f"{POPUP_URL}?tabIds={','.join(map(str, ids))}")
+    return popup
 
 
-def capture(driver: webdriver.Firefox, dest: Path) -> None:
+def capture(page: Page, dest: Path) -> None:
     """Screenshot the popup body at its natural popup width."""
-    driver.execute_script(STYLE_JS, POPUP_WIDTH)
-    bottom = driver.execute_script(
-        "return Math.ceil(document.body.getBoundingClientRect().bottom) + 8"
-    )
-    inner_height = driver.execute_script("return innerHeight")
-    if bottom > inner_height:
-        size = driver.get_window_size()
-        driver.set_window_size(size["width"], size["height"] + bottom - inner_height)
-    driver.find_element(By.TAG_NAME, "body").screenshot(str(dest))
+    page.evaluate(STYLE_JS.replace("arguments[0]", str(POPUP_WIDTH)))
+    page.locator("body").screenshot(path=dest)
     if not dest.is_file() or dest.stat().st_size == 0:
         raise RuntimeError(f"failed to write {dest}")
+    # Chrome Web Store screenshots must be 24-bit PNGs without an alpha channel.
+    with Image.open(dest) as screenshot:
+        screenshot.convert("RGB").save(dest)
 
 
-def wait_status(driver: webdriver.Firefox, contains: str) -> str:
-    return WebDriverWait(driver, WAIT).until(
-        lambda d: (t := d.find_element(By.ID, "status").text) and contains in t and t
-    )
+def wait_status(page: Page, contains: str) -> None:
+    page.locator("#status").filter(has_text=contains).wait_for(timeout=WAIT)
 
 
 def main() -> int:
@@ -199,31 +169,31 @@ def main() -> int:
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Page)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
-        home = make_home(workspace)
+        home, env = make_home(workspace)
         base = f"http://127.0.0.1:{server.server_port}"
 
-        driver = start_firefox()
-        try:
-            open_popup(driver, base)
-            WebDriverWait(driver, WAIT).until(
-                lambda d: d.find_elements(By.CSS_SELECTOR, "#browsers button")
-            )
-            capture(driver, args.output / "popup-default.png")
-            driver.find_element(By.CSS_SELECTOR, "button[data-browser=vivaldi]").click()
-            wait_status(driver, "Sent")
-            capture(driver, args.output / "popup-sent.png")
-        finally:
-            driver.quit()
+        with sync_playwright() as playwright:
+            context = start_chromium(playwright, workspace / "success", env)
+            try:
+                popup = open_popup(context, base)
+                popup.locator("#browsers button").first.wait_for(timeout=WAIT)
+                capture(popup, args.output / "popup-default.png")
+                popup.locator("button[data-browser=vivaldi]").click()
+                wait_status(popup, "Sent")
+                capture(popup, args.output / "popup-sent.png")
+            finally:
+                context.close()
 
-        # Same HOME, host unregistered: the popup reports the missing native host.
-        (home / ".mozilla" / "native-messaging-hosts" / f"{HOST_NAME}.json").unlink()
-        driver = start_firefox()
-        try:
-            open_popup(driver, base)
-            wait_status(driver, "native host")
-            capture(driver, args.output / "popup-error.png")
-        finally:
-            driver.quit()
+            # Same HOME, host unregistered: the popup reports the missing native host.
+            manifest = home / ".config" / "chromium" / "NativeMessagingHosts" / f"{HOST_NAME}.json"
+            manifest.unlink()
+            context = start_chromium(playwright, workspace / "error", env)
+            try:
+                popup = open_popup(context, base)
+                wait_status(popup, "native host")
+                capture(popup, args.output / "popup-error.png")
+            finally:
+                context.close()
     finally:
         server.shutdown()
         server.server_close()

@@ -22,4 +22,5 @@ jobs:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v6
       - uses: browser-actions/setup-firefox@v1
+      - uses: browser-actions/setup-geckodriver@latest
       - run: just ci

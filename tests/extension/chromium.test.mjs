@@ -32,7 +32,7 @@ test("Firefox and Chromium manifests expose raster logos", async () => {
     await readFile(new URL("../../extension/manifest.json", import.meta.url)),
   );
   for (const current of [firefox, manifest]) {
-    assert.deepEqual(Object.keys(current.icons), ["48", "96"]);
+    assert.deepEqual(Object.keys(current.icons), ["48", "96", "128"]);
     for (const [size, path] of Object.entries(current.icons)) {
       assert.match(path, new RegExp(`icon-${size}\\.png$`));
       const png = await readFile(

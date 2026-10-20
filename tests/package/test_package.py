@@ -26,14 +26,16 @@ def test_just_package_builds_all_artifacts(tmp_path: Path) -> None:
     subprocess.run(["just", "package"], cwd=tmp_path, check=True)
 
     firefox = tmp_path / "dist" / f"send-to-other-browser-extension-{version}.zip"
-    chromium = tmp_path / "dist" / f"send-to-other-browser-chromium-{version}.zip"
+    web_store = tmp_path / "dist" / f"send-to-other-browser-chrome-web-store-{version}.zip"
     native_host = tmp_path / "dist" / f"send-to-other-browser-host-{version}.tar.gz"
-    assert {path.name for path in (firefox, chromium, native_host) if path.is_file()} == {
+    assert {path.name for path in (firefox, web_store, native_host) if path.is_file()} == {
         firefox.name,
-        chromium.name,
+        web_store.name,
         native_host.name,
     }
     assert {"manifest.json", "background.js"} <= archive_names(firefox)
-    assert {"manifest.json", "background.js"} <= archive_names(chromium)
+    assert {"manifest.json", "background.js"} <= archive_names(web_store)
+    with zipfile.ZipFile(web_store) as archive:
+        assert "key" not in json.loads(archive.read("manifest.json"))
     with tarfile.open(native_host) as archive:
         assert {"host/install.py", "host/send_to_other_browser.py"} <= set(archive.getnames())

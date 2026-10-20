@@ -88,14 +88,14 @@ install locations (`/usr/bin`, `/snap/bin`, `/opt/vivaldi`, `/opt/google/chrome`
 
 ## Screenshots
 
-The Firefox popup with three tabs selected and every supported browser found, the confirmation after
+The Chromium popup with three tabs selected and every supported browser found, the confirmation after
 sending them to Vivaldi, and the error shown when the native host is not registered:
 
 | Popup | Sent | Host missing |
 | --- | --- | --- |
 | ![Popup: 3 tabs selected, five browser buttons](docs/screenshots/popup-default.png) | ![Popup: status "Sent 3 tabs to Vivaldi."](docs/screenshots/popup-sent.png) | ![Popup: native host error with installation documentation link](docs/screenshots/popup-error.png) |
 
-They are generated from a real headless Firefox run by `just screenshots` and refreshed on
+They are generated from a real headless Chromium run by `just screenshots` and refreshed on
 demand by the `screenshots.yml` workflow.
 
 ## Privacy

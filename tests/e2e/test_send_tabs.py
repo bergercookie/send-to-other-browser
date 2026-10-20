@@ -33,6 +33,12 @@ EXTENSION_ID = "send-to-other-browser@bergercookie"
 EXTENSION_UUID = str(uuid.uuid4())
 POPUP_URL = f"moz-extension://{EXTENSION_UUID}/popup/popup.html"
 
+FIREFOX = os.environ.get("FIREFOX_BIN") or shutil.which("firefox")
+GECKODRIVER = os.environ.get("GECKODRIVER") or shutil.which("geckodriver")
+pytestmark = pytest.mark.skipif(
+    not FIREFOX or not GECKODRIVER, reason="needs Firefox and geckodriver"
+)
+
 FAKE_BROWSER = """#!/bin/sh
 printf '%s\\n' "$@" >> "$E2E_LOG_DIR/$(basename "$0").log"
 """
@@ -86,17 +92,19 @@ def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 @pytest.fixture
 def firefox(env: Path) -> Iterator[webdriver.Firefox]:
+    assert FIREFOX is not None
+    assert GECKODRIVER is not None
     options = Options()
     options.add_argument("-headless")
-    if os.environ.get("FIREFOX_BIN"):
-        options.binary_location = os.environ["FIREFOX_BIN"]
+    options.binary_location = FIREFOX
     # Pin the extension's moz-extension:// host so the test can open its popup.
     options.set_preference(
         "extensions.webextensions.uuids", json.dumps({EXTENSION_ID: EXTENSION_UUID})
     )
     # --allow-system-access: chrome-context access, see open_extension_page
     driver = webdriver.Firefox(
-        options=options, service=Service(service_args=["--allow-system-access"])
+        options=options,
+        service=Service(executable_path=GECKODRIVER, service_args=["--allow-system-access"]),
     )
     driver.install_addon(str(ROOT / "extension"), temporary=True)
     yield driver

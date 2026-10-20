@@ -62,8 +62,8 @@ Use the extension's **Reload** button on that page after changing its JavaScript
 | `just test-package` | Run `just package` in isolation and verify all release archives |
 | `just test-e2e` | Run Firefox and Chromium-family browser E2E suites; unavailable browser suites skip |
 | `just ci` | Run lint, unit tests, and E2E tests |
-| `just package [version]` | Build the Firefox zip, Chromium zip, and host tarball in `dist/` |
-| `just screenshots` | Regenerate `docs/screenshots/*.png` with headless Firefox |
+| `just package [version]` | Build the Firefox, Chrome Web Store, and host archives in `dist/` |
+| `just screenshots` | Install Playwright Chromium and regenerate `docs/screenshots/*.png` |
 
 Set `FIREFOX_BIN`, `CHROME_BIN`, `VIVALDI_BIN`, or `CHROMIUM_BIN` to select browser binaries for
 the E2E suites. Set `CHROMEDRIVER` when the matching driver is not available on `PATH`.
@@ -72,7 +72,17 @@ the E2E suites. Set `CHROMEDRIVER` when the matching driver is not available on 
 
 - `ci.yml`: runs `just ci` on pushes to `main`/`master` and pull requests.
 - `release.yml`: for `v*` tags on `main`/`master`, validates the manifest version, runs the test
-  suite, packages the artifacts, and creates a GitHub release.
+  suite, packages the artifacts, submits the Firefox extension to AMO, and creates a GitHub release.
 - `nightly.yml`: publishes the rolling `nightly` prerelease after changes to `main`/`master`, with
   a daily scheduled run as a safety net.
 - `screenshots.yml`: on demand (`workflow_dispatch`), regenerates and commits the screenshots.
+
+Upload `send-to-other-browser-chrome-web-store-<version>.zip` to the Chrome Web Store. It omits
+the development `key` so the store can preserve the existing item's extension ID. For development,
+load `extension-chromium/` unpacked; its manifest retains the key that gives local installs the
+stable ID allowed by the native host.
+
+To enable Firefox publishing, create AMO API credentials and add them to the GitHub repository as
+the `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` Actions secrets. Pushing a version tag such as `v0.2.0`
+then submits `extension/` to the listed AMO channel; the tag must match the version in
+`extension/manifest.json`.
