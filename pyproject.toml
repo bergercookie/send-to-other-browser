@@ -5,7 +5,7 @@
 name = "send-to-other-browser"
 # extension/manifest.json is the authoritative version; keep this in sync.
 version = "0.1.0"
-description = "Firefox extension and native messaging host that sends selected tabs to another browser."
+description = "Firefox and Chromium extensions with a native host for sending tabs to another browser."
 readme = "README.md"
 requires-python = ">=3.12"
 # Not an installable package: the host is a plain script Firefox launches directly,

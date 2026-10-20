@@ -15,7 +15,10 @@
   "action": {
     "default_title": "Send selected tabs to another browser",
     "default_popup": "popup/popup.html",
-    "default_icon": "icons/icon.svg"
+    "default_icon": {
+      "48": "icons/icon-48.png",
+      "96": "icons/icon-96.png"
+    }
   },
-  "icons": { "48": "icons/icon.svg", "96": "icons/icon.svg" }
+  "icons": { "48": "icons/icon-48.png", "96": "icons/icon-96.png" }
 }

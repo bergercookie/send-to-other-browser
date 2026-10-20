@@ -1,11 +1,24 @@
 import { getSelectedTabs, partitionTabs } from "../lib/sendable.js";
 
 const $ = (id) => document.getElementById(id);
+const INSTALLATION_URL =
+  "https://github.com/bergercookie/firefox-send-to-other-browser#installation";
 
 function setStatus(text, kind = "") {
   const el = $("status");
   el.textContent = text;
   el.className = kind;
+}
+
+function setNativeHostError(error) {
+  const link = document.createElement("a");
+  link.href = INSTALLATION_URL;
+  link.target = "_blank";
+  link.rel = "noreferrer";
+  link.textContent = "installation documentation";
+  const status = $("status");
+  status.replaceChildren(`Cannot reach the native host: ${error} See the `, link, ".");
+  status.className = "error";
 }
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -25,14 +38,14 @@ async function main() {
   const { urls, skipped } = partitionTabs(tabs);
   $("summary").textContent =
     urls.length === 0
-      ? "No sendable tabs selected."
-      : `${plural(urls.length, "tab")} selected` +
-        (skipped.length ? ` (${skipped.length} skipped: not a web page)` : "") +
+        ? "No sendable tabs selected."
+        : `${plural(urls.length, "tab")} selected` +
+        (skipped.length ? ` (${skipped.length} skipped: invalid URL)` : "") +
         ". Send to:";
 
   const reply = await browser.runtime.sendMessage({ type: "list" }).catch((e) => ({ ok: false, error: e.message }));
   if (!reply.ok) {
-    setStatus(`Cannot reach the native host: ${reply.error}. Did you run "just install-host"?`, "error");
+    setNativeHostError(reply.error);
     return;
   }
   if (reply.browsers.length === 0) {

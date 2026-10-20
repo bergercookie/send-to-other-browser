@@ -206,7 +206,7 @@ def test_send_to_chrome_and_close_tabs(
     assert not set(urls) & set(remaining)
 
 
-def test_non_web_tabs_are_skipped(
+def test_non_http_tabs_are_forwarded(
     firefox: webdriver.Firefox,
     env: Path,
     web_server: str,
@@ -214,17 +214,18 @@ def test_non_web_tabs_are_skipped(
     url = f"{web_server}/web"
     tab_ids = open_tabs(firefox, [url])
     open_popup(firefox, tab_ids)
-    # The popup tab itself is a moz-extension:// page and must never be sent.
-    own_id = firefox.execute_async_script(
-        "const done = arguments[arguments.length - 1];"
-        "browser.tabs.getCurrent().then((t) => done(t.id));"
+    # The popup itself proves that a moz-extension:// URL is forwarded too.
+    own_tab = firefox.execute_async_script(
+        "const done = arguments[arguments.length - 1];browser.tabs.getCurrent().then(done);"
     )
-    open_popup(firefox, [*tab_ids, own_id])
-    WebDriverWait(firefox, 10).until(lambda d: "1 skipped" in d.find_element(By.ID, "summary").text)
+    open_popup(firefox, [*tab_ids, own_tab["id"]])
+    WebDriverWait(firefox, 10).until(
+        lambda d: "2 tabs selected" in d.find_element(By.ID, "summary").text
+    )
     WebDriverWait(firefox, 10).until(lambda d: d.find_elements(By.CSS_SELECTOR, "#browsers button"))
     firefox.find_element(By.CSS_SELECTOR, "button[data-browser=vivaldi]").click()
-    status_text(firefox, "Sent 1 tab to Vivaldi")
-    assert wait_for_log(env, "vivaldi") == [url]
+    status_text(firefox, "Sent 2 tabs to Vivaldi")
+    assert wait_for_log(env, "vivaldi") == [url, own_tab["url"]]
 
 
 def test_missing_native_host_shows_a_helpful_error(
@@ -236,4 +237,8 @@ def test_missing_native_host_shows_a_helpful_error(
     shutil.rmtree(Path(os.environ["HOME"]) / ".mozilla" / "native-messaging-hosts")
     tab_ids = open_tabs(firefox, [f"{web_server}/x"])
     open_popup(firefox, tab_ids)
-    assert "just install-host" in status_text(firefox, "native host")
+    assert "installation documentation" in status_text(firefox, "native host")
+    assert (
+        firefox.find_element(By.CSS_SELECTOR, "#status a").get_attribute("href")
+        == "https://github.com/bergercookie/firefox-send-to-other-browser#installation"
+    )

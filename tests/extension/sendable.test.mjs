@@ -2,10 +2,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isSendableUrl, partitionTabs, getSelectedTabs } from "../../extension/lib/sendable.js";
 
-test("isSendableUrl accepts only http(s)", () => {
-  assert.ok(isSendableUrl("https://example.com/x"));
-  assert.ok(isSendableUrl("http://localhost:3000"));
-  for (const u of ["about:config", "moz-extension://a/b.html", "file:///x", "javascript:1", "", undefined, "nope"]) {
+test("isSendableUrl accepts absolute URLs with any scheme", () => {
+  for (const u of [
+    "https://example.com/x",
+    "about:config",
+    "moz-extension://a/b.html",
+    "file:///x",
+    "javascript:1",
+    "mailto:user@example.com",
+  ]) {
+    assert.equal(isSendableUrl(u), true, String(u));
+  }
+  for (const u of ["", undefined, "nope", "--user-data-dir=/tmp/profile"]) {
     assert.equal(isSendableUrl(u), false, String(u));
   }
 });
@@ -16,11 +24,12 @@ test("partitionTabs separates, de-duplicates and keeps order", () => {
     { id: 2, url: "about:blank" },
     { id: 3, url: "https://b.example/" },
     { id: 4, url: "https://a.example/" },
+    { id: 5, url: "" },
   ];
   const { urls, sendableTabs, skipped } = partitionTabs(tabs);
-  assert.deepEqual(urls, ["https://a.example/", "https://b.example/"]);
-  assert.deepEqual(sendableTabs.map((t) => t.id), [1, 3, 4]);
-  assert.deepEqual(skipped.map((t) => t.id), [2]);
+  assert.deepEqual(urls, ["https://a.example/", "about:blank", "https://b.example/"]);
+  assert.deepEqual(sendableTabs.map((t) => t.id), [1, 2, 3, 4]);
+  assert.deepEqual(skipped.map((t) => t.id), [5]);
 });
 
 const fakeTabs = (highlighted) => ({

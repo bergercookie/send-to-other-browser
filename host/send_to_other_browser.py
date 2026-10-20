@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Native messaging host for the "Send to Other Browser" Firefox extension.
+"""Native messaging host for the "Send to Other Browser" extensions.
 
 Speaks the WebExtensions native messaging protocol on stdin/stdout (a 4-byte
 native-endian length followed by UTF-8 JSON) and opens URLs in another
-Chromium-family browser installed on this machine.
+supported browser installed on this machine.
 
 Requests:
     {"action": "ping"}
@@ -17,12 +17,14 @@ searched for browser executables before $PATH (used by the tests).
 
 import json
 import os
+import re
 import shutil
 import struct
 import subprocess
 import sys
 from collections.abc import Callable
 from collections.abc import Mapping
+from pathlib import Path
 from typing import IO
 from typing import Any
 from urllib.parse import urlsplit
@@ -33,13 +35,29 @@ MAX_MESSAGE_BYTES = 1024 * 1024  # Firefox never sends more than 4 GiB; we are s
 
 Browser = dict[str, str]
 
-# id -> (display name, executable names tried in order)
+# id -> (display name, executable names tried in order). Flatpak exports desktop
+# launchers under their application IDs, so those IDs work like normal executables.
 BROWSERS: dict[str, tuple[str, tuple[str, ...]]] = {
-    "vivaldi": ("Vivaldi", ("vivaldi", "vivaldi-stable", "vivaldi.vivaldi-stable")),
-    "chrome": ("Google Chrome", ("google-chrome", "google-chrome-stable")),
-    "chromium": ("Chromium", ("chromium", "chromium-browser")),
-    "brave": ("Brave", ("brave-browser", "brave")),
-    "edge": ("Microsoft Edge", ("microsoft-edge", "microsoft-edge-stable")),
+    "firefox": ("Mozilla Firefox", ("firefox", "firefox-esr", "org.mozilla.firefox")),
+    "zen": ("Zen Browser", ("zen", "zen-browser", "app.zen_browser.zen")),
+    "librewolf": (
+        "LibreWolf",
+        ("librewolf", "librewolf-bin", "io.gitlab.librewolf-community"),
+    ),
+    "vivaldi": (
+        "Vivaldi",
+        ("vivaldi", "vivaldi-stable", "vivaldi.vivaldi-stable", "com.vivaldi.Vivaldi"),
+    ),
+    "chrome": (
+        "Google Chrome",
+        ("google-chrome", "google-chrome-stable", "com.google.Chrome"),
+    ),
+    "chromium": ("Chromium", ("chromium", "chromium-browser", "org.chromium.Chromium")),
+    "brave": ("Brave", ("brave-browser", "brave", "com.brave.Browser")),
+    "edge": (
+        "Microsoft Edge",
+        ("microsoft-edge", "microsoft-edge-stable", "com.microsoft.Edge"),
+    ),
 }
 
 
@@ -51,18 +69,28 @@ FALLBACK_DIRS = (
     "/usr/bin",
     "/bin",
     "/snap/bin",
+    "/opt/firefox",
+    "/opt/zen",
+    "/opt/librewolf",
     "/opt/vivaldi",
     "/opt/google/chrome",
     "/opt/brave.com/brave",
     "/opt/microsoft/msedge",
+    "/var/lib/flatpak/exports/bin",
+    "~/bin",
     "~/.local/bin",
+    "~/.local/opt/firefox",
+    "~/.local/opt/zen",
+    "~/.local/opt/librewolf",
+    "~/.local/share/flatpak/exports/bin",
 )
 
 
 def search_path(env: Mapping[str, str] | None = None) -> str:
     source: Mapping[str, str] = os.environ if env is None else env
     extra = [p for p in source.get("SEND_TO_OTHER_BROWSER_PATH", "").split(os.pathsep) if p]
-    fallback = [os.path.expanduser(d) for d in FALLBACK_DIRS]
+    home = source.get("HOME", str(Path.home()))
+    fallback = [home + d[1:] if d.startswith("~") else d for d in FALLBACK_DIRS]
     return os.pathsep.join([*extra, source.get("PATH", os.defpath), *fallback])
 
 
@@ -79,22 +107,28 @@ def discover_browsers(path: str | None = None) -> list[Browser]:
     return found
 
 
-def is_web_url(url: object) -> bool:
+URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+
+
+def is_sendable_url(url: object) -> bool:
     if not isinstance(url, str) or not url or len(url) > 32768:
+        return False
+    if not URL_SCHEME.match(url):
         return False
     try:
         parts = urlsplit(url)
     except ValueError:
         return False
-    return parts.scheme in ("http", "https") and bool(parts.netloc)
+    if parts.scheme in ("http", "https"):
+        return bool(parts.netloc)
+    return True
 
 
 def _spawn(argv: list[str]) -> None:
     # Detached, so the browser outlives this short-lived host. A running
-    # Chromium-family browser hands the URLs to the existing instance, which
-    # opens them as new tabs in its most recent window and the child exits
-    # straight away. Never add --new-window here: that is what would open a
-    # separate window per send.
+    # Both Firefox and Chromium-family browsers hand the URLs to an existing
+    # instance, which opens them as tabs and lets this child exit. Never add
+    # --new-window here: that is what would force a separate window per send.
     subprocess.Popen(
         argv,
         stdin=subprocess.DEVNULL,
@@ -125,10 +159,10 @@ def handle_request(
             return {"ok": False, "error": "'urls' must be a non-empty list"}
         if len(urls) > MAX_URLS:
             return {"ok": False, "error": f"too many urls (max {MAX_URLS})"}
-        valid = [u for u in urls if is_web_url(u)]
-        skipped = [u for u in urls if not is_web_url(u)]
+        valid = [u for u in urls if is_sendable_url(u)]
+        skipped = [u for u in urls if not is_sendable_url(u)]
         if not valid:
-            return {"ok": False, "error": "no valid http(s) urls", "skipped": skipped}
+            return {"ok": False, "error": "no valid urls", "skipped": skipped}
         browsers = {b["id"]: b for b in discover()}
         browser_id = request.get("browser")
         target = browsers.get(browser_id) if isinstance(browser_id, str) else None

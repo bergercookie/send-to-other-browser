@@ -33,19 +33,23 @@ test-host:
 test-extension:
     node --test tests/extension/*.test.mjs
 
-# End-to-end test: real headless Firefox, real extension, real host, fake target browsers.
+# Package in an isolated workspace and inspect every release artifact.
+test-package:
+    uv run pytest tests/package -v
+
+# End-to-end tests: real headless Firefox and Chrome/Vivaldi (when available), real host.
 test-e2e:
     uv run pytest tests/e2e -v
 
 # Everything.
-test: test-unit test-e2e
+test: test-unit test-package test-e2e
 
 # What CI runs on every push and pull request.
 ci: lint test
 
 # --- run it ------------------------------------------------------------------
 
-# Register the native host for the current user (~/.mozilla/native-messaging-hosts).
+# Register the host for Firefox, Chrome, Chromium, and Vivaldi.
 install-host:
     python3 host/install.py
 
@@ -76,7 +80,7 @@ check-version tag:
         exit 1
     fi
 
-# Build dist/: the extension zip and the native host tarball. Optionally override the version
+# Build dist/: Firefox and Chromium extension zips and the native host tarball. Optionally override
 # (used for nightlies, e.g. `just package 0.1.0.42`).
 package override="":
     #!/usr/bin/env bash
@@ -84,17 +88,20 @@ package override="":
     version="{{override}}"
     version="${version:-$(just version)}"
     rm -rf build dist
-    mkdir -p build/extension build/host dist
+    mkdir -p build/extension build/extension-chromium build/host dist
     cp -r extension/. build/extension/
+    cp -r extension-chromium/. build/extension-chromium/
     python3 - "$version" <<'PY'
     import json, sys
-    path = "build/extension/manifest.json"
-    manifest = json.load(open(path))
-    manifest["version"] = sys.argv[1]
-    json.dump(manifest, open(path, "w"), indent=2)
+    for path in ("build/extension/manifest.json", "build/extension-chromium/manifest.json"):
+        manifest = json.load(open(path))
+        manifest["version"] = sys.argv[1]
+        json.dump(manifest, open(path, "w"), indent=2)
     PY
     {{web_ext}} build --source-dir build/extension --artifacts-dir dist \
         --filename "send-to-other-browser-extension-${version}.zip" --overwrite-dest
+    (cd build/extension-chromium && python3 -m zipfile -c \
+        "../../dist/send-to-other-browser-chromium-${version}.zip" .)
     cp host/send_to_other_browser.py host/install.py build/host/
     tar -C build -czf "dist/send-to-other-browser-host-${version}.tar.gz" host
     ls -l dist

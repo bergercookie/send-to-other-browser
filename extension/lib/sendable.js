@@ -1,10 +1,9 @@
 // Pure helpers: deciding which tabs can be handed to another browser.
 
-/** Only web pages make sense in another browser; about:, moz-extension:, file: etc. do not. */
+/** Accept any syntactically valid absolute URL; relative strings and command switches are unsafe. */
 export function isSendableUrl(url) {
   try {
-    const { protocol } = new URL(url);
-    return protocol === "http:" || protocol === "https:";
+    return Boolean(new URL(url).protocol);
   } catch {
     return false;
   }

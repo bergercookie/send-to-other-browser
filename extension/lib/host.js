@@ -12,7 +12,15 @@ async function call(runtime, message) {
 
 /** @returns {Promise<{id: string, name: string, path: string}[]>} */
 export async function listBrowsers(runtime) {
-  return (await call(runtime, { action: "list" })).browsers;
+  let current = "firefox";
+  if (typeof runtime.getBrowserInfo === "function") {
+    const name = (await runtime.getBrowserInfo()).name.toLowerCase();
+    if (name.includes("librewolf")) current = "librewolf";
+    else if (name.includes("zen")) current = "zen";
+  }
+  return (await call(runtime, { action: "list" })).browsers.filter(
+    (target) => target.id !== current,
+  );
 }
 
 export function sendUrls(runtime, browserId, urls) {

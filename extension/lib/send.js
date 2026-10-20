@@ -8,7 +8,7 @@ import { sendUrls } from "./host.js";
 export async function sendTabs(api, browserId, tabs, { close = false } = {}) {
   const { urls, sendableTabs, skipped } = partitionTabs(tabs);
   if (urls.length === 0) {
-    throw new Error("None of the selected tabs can be sent (only http/https pages are supported).");
+    throw new Error("None of the selected tabs has a valid URL that can be sent.");
   }
   await sendUrls(api.runtime, browserId, urls);
   let closed = 0;

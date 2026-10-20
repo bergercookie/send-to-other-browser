@@ -33,6 +33,46 @@ def test_finds_installed_browsers_only() -> None:
     ]
 
 
+def test_finds_firefox_as_a_destination() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        firefox = make_exe(directory, "firefox-esr")
+        assert host.discover_browsers(path=directory) == [
+            {"id": "firefox", "name": "Mozilla Firefox", "path": firefox}
+        ]
+
+
+@pytest.mark.parametrize("executable", ["firefox", "firefox-esr", "org.mozilla.firefox"])
+def test_finds_firefox_install_variants(executable: str) -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        path = make_exe(directory, executable)
+        assert host.discover_browsers(path=directory)[0]["path"] == path
+
+
+@pytest.mark.parametrize(
+    ("browser_id", "name", "executable"),
+    [
+        ("zen", "Zen Browser", "zen-browser"),
+        ("zen", "Zen Browser", "app.zen_browser.zen"),
+        ("librewolf", "LibreWolf", "librewolf"),
+        ("librewolf", "LibreWolf", "io.gitlab.librewolf-community"),
+    ],
+)
+def test_finds_firefox_forks(browser_id: str, name: str, executable: str) -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        path = make_exe(directory, executable)
+        assert host.discover_browsers(path=directory) == [
+            {"id": browser_id, "name": name, "path": path}
+        ]
+
+
+def test_first_install_location_wins() -> None:
+    with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
+        make_exe(first, "firefox")
+        preferred = make_exe(second, "firefox")
+        found = host.discover_browsers(path=os.pathsep.join((second, first)))
+        assert found[0]["path"] == preferred
+
+
 def test_finds_snap_vivaldi() -> None:
     with tempfile.TemporaryDirectory() as d:
         exe = make_exe(d, "vivaldi.vivaldi-stable")
@@ -62,25 +102,46 @@ def test_minimal_environment_still_searches_standard_locations() -> None:
         assert expected in path
 
 
-def test_accepts_http_and_https() -> None:
-    assert host.is_web_url("https://example.com/a?b=c#d")
-    assert host.is_web_url("http://localhost:8080/")
+def test_searches_snap_flatpak_and_user_install_locations() -> None:
+    path = host.search_path({"HOME": "/home/tester", "PATH": "/custom/bin"}).split(os.pathsep)
+    for expected in (
+        "/snap/bin",
+        "/opt/firefox",
+        "/var/lib/flatpak/exports/bin",
+        "/home/tester/.local/opt/firefox",
+        "/home/tester/.local/share/flatpak/exports/bin",
+    ):
+        assert expected in path
 
 
-def test_rejects_everything_else() -> None:
-    for bad in (
+def test_snap_note_links_to_readme_section() -> None:
+    assert "README.md#snap-firefox" in install.SNAP_NOTE
+
+
+def test_accepts_urls_with_different_schemes() -> None:
+    for url in (
+        "https://example.com/a?b=c#d",
+        "http://localhost:8080/",
         "file:///etc/passwd",
-        "javascript:alert(1)",
         "about:config",
-        "moz-extension://x/y.html",
+        "moz-extension://id/page.html",
+        "mailto:user@example.com",
+        "javascript:alert(1)",
+    ):
+        assert host.is_sendable_url(url)
+
+
+def test_rejects_non_urls_and_command_switches() -> None:
+    for bad in (
         "--user-data-dir=/tmp/x",
         "-https://example.com",
         "https://",
+        "relative/path",
         "",
         None,
         42,
     ):
-        assert not host.is_web_url(bad), repr(bad)
+        assert not host.is_sendable_url(bad), repr(bad)
 
 
 @pytest.fixture
@@ -130,6 +191,18 @@ def test_send_spawns_browser_with_all_urls(
     assert reply == {"ok": True, "opened": 2, "skipped": [], "browser": "vivaldi"}
 
 
+def test_send_to_firefox() -> None:
+    spawned: list[list[str]] = []
+    firefox = {"id": "firefox", "name": "Mozilla Firefox", "path": "/usr/bin/firefox"}
+    reply = host.handle_request(
+        {"action": "send", "browser": "firefox", "urls": ["https://example.com/"]},
+        discover=lambda: [firefox],
+        spawn=spawned.append,
+    )
+    assert reply["ok"]
+    assert spawned == [["/usr/bin/firefox", "https://example.com/"]]
+
+
 def test_send_never_forces_a_new_window(
     handle: Callable[[object], dict[str, Any]],
     spawned: list[list[str]],
@@ -141,7 +214,7 @@ def test_send_never_forces_a_new_window(
     assert not [a for a in argv[1:] if a.startswith("-")]
 
 
-def test_send_drops_non_web_urls(
+def test_send_keeps_non_http_urls_but_drops_command_switches(
     handle: Callable[[object], dict[str, Any]],
     spawned: list[list[str]],
 ) -> None:
@@ -152,15 +225,15 @@ def test_send_drops_non_web_urls(
             "urls": ["https://a.example/", "file:///etc/passwd", "--evil"],
         }
     )
-    assert spawned == [["/opt/vivaldi", "https://a.example/"]]
-    assert reply["skipped"] == ["file:///etc/passwd", "--evil"]
+    assert spawned == [["/opt/vivaldi", "https://a.example/", "file:///etc/passwd"]]
+    assert reply["skipped"] == ["--evil"]
 
 
 def test_send_with_only_invalid_urls_fails_without_spawning(
     handle: Callable[[object], dict[str, Any]],
     spawned: list[list[str]],
 ) -> None:
-    reply = handle({"action": "send", "browser": "vivaldi", "urls": ["about:blank"]})
+    reply = handle({"action": "send", "browser": "vivaldi", "urls": ["not a URL"]})
     assert not reply["ok"]
     assert spawned == []
 
@@ -270,6 +343,49 @@ def test_install_and_uninstall() -> None:
         assert not (dest / "send_to_other_browser.json").exists()
 
 
+@pytest.mark.parametrize("browser", ["chrome", "chromium", "vivaldi"])
+def test_install_chromium_native_manifest(browser: str) -> None:
+    with tempfile.TemporaryDirectory() as d:
+        dest = Path(d) / "nmh"
+        assert install.main(["--browser", browser, "--dest", str(dest)]) == 0
+        manifest = json.loads((dest / "send_to_other_browser.json").read_text())
+        assert manifest["allowed_origins"] == [
+            f"chrome-extension://{install.CHROMIUM_EXTENSION_ID}/"
+        ]
+        assert "allowed_extensions" not in manifest
+
+
+@pytest.mark.parametrize("browser", ["firefox", "zen", "librewolf"])
+def test_install_gecko_native_manifest(browser: str) -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        dest = Path(directory) / "nmh"
+        assert install.main(["--browser", browser, "--dest", str(dest)]) == 0
+        manifest = json.loads((dest / "send_to_other_browser.json").read_text())
+        assert manifest["allowed_extensions"] == [install.FIREFOX_EXTENSION_ID]
+        assert "allowed_origins" not in manifest
+
+
+def test_default_destinations_cover_supported_browser_families(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert install.main([]) == 0
+    for browser, relative in install.BROWSER_DESTINATIONS.items():
+        manifest = json.loads((tmp_path / relative / f"{install.HOST_NAME}.json").read_text())
+        key = "allowed_extensions" if browser in install.GECKO_BROWSERS else "allowed_origins"
+        assert key in manifest
+
+
 def test_extension_id_matches_manifest() -> None:
     manifest = json.loads((ROOT / "extension" / "manifest.json").read_text())
     assert manifest["browser_specific_settings"]["gecko"]["id"] == install.EXTENSION_ID
+
+
+def test_chromium_extension_id_matches_installer() -> None:
+    import base64
+    import hashlib
+
+    manifest = json.loads((ROOT / "extension-chromium" / "manifest.json").read_text())
+    digest = hashlib.sha256(base64.b64decode(manifest["key"])).digest()[:16]
+    extension_id = "".join(chr(ord("a") + nibble) for byte in digest for nibble in divmod(byte, 16))
+    assert extension_id == install.CHROMIUM_EXTENSION_ID
