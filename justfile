@@ -84,6 +84,10 @@ check-version tag:
         exit 1
     fi
 
+# Update every version field, commit the bump, and create the local release tag.
+prepare-release version:
+    uv run python scripts/prepare_release.py "{{version}}"
+
 # Build dist/: Firefox and Chrome Web Store zips and the native host tarball. Optionally override
 # (used for nightlies, e.g. `just package 0.1.0.42`).
 package override="":

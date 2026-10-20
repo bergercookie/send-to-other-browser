@@ -86,3 +86,7 @@ To enable Firefox publishing, create AMO API credentials and add them to the Git
 the `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` Actions secrets. Pushing a version tag such as `v0.2.0`
 then submits `extension/` to the listed AMO channel; the tag must match the version in
 `extension/manifest.json`.
+
+Prepare a release from a clean worktree with `just prepare-release 0.3.0`. This updates both
+extension manifests and `pyproject.toml`, commits the version bump, and creates the local `v0.3.0`
+tag. Review the commit, then publish it with the `git push` command printed by the helper.
