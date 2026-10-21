@@ -1,6 +1,7 @@
 import { getSelectedTabs } from "./lib/sendable.js";
 import { listBrowsers } from "./lib/host.js";
 import { sendTabs } from "./lib/send.js";
+import { getCloseAfterSend } from "./lib/settings.js";
 
 const MENU_PREFIX = "send:";
 
@@ -34,7 +35,8 @@ browser.menus.onClicked.addListener(async (info, tab) => {
   if (!info.menuItemId.startsWith(MENU_PREFIX)) return;
   try {
     const tabs = await getSelectedTabs(browser.tabs, tab);
-    await sendTabs(browser, info.menuItemId.slice(MENU_PREFIX.length), tabs);
+    const close = await getCloseAfterSend(browser.storage.local);
+    await sendTabs(browser, info.menuItemId.slice(MENU_PREFIX.length), tabs, { close });
     await flashBadge("✓", "#2e9e4f");
   } catch (err) {
     console.error(err);

@@ -134,3 +134,18 @@ def test_chromium_extension_sends_selected_tabs_to_firefox(
     button.click()
     popup.locator("#status").filter(has_text="Sent 2 tabs").wait_for()
     assert wait_for_log(log_dir / "firefox.log") == urls
+
+
+def test_chromium_popup_remembers_the_close_tabs_preference(
+    chromium: BrowserContext,
+) -> None:
+    popup = chromium.new_page()
+    popup.goto(POPUP_URL)
+    checkbox = popup.locator("#close")
+    checkbox.wait_for()
+    checkbox.check()
+
+    # The preference is sticky: a freshly opened popup still has it enabled.
+    reopened = chromium.new_page()
+    reopened.goto(POPUP_URL)
+    reopened.wait_for_function("() => document.getElementById('close').checked")

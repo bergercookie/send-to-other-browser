@@ -215,6 +215,12 @@ def test_send_to_chrome_and_close_tabs(
     )
     assert not set(urls) & set(remaining)
 
+    # The preference is sticky: a freshly opened popup still has it enabled.
+    open_extension_page(firefox, POPUP_URL)
+    WebDriverWait(firefox, 10).until(
+        lambda d: d.execute_script("return document.getElementById('close').checked")
+    )
+
 
 def test_non_http_tabs_are_forwarded(
     firefox: webdriver.Firefox,

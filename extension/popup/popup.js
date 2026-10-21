@@ -1,4 +1,5 @@
 import { getSelectedTabs, partitionTabs } from "../lib/sendable.js";
+import { bindCloseAfterSend } from "../lib/settings.js";
 
 const $ = (id) => document.getElementById(id);
 const INSTALLATION_URL =
@@ -34,6 +35,9 @@ async function loadTabs() {
 }
 
 async function main() {
+  // The preference is sticky: it is restored from the extension's storage and
+  // every change is written back to it.
+  await bindCloseAfterSend($("close"), browser.storage.local);
   const tabs = await loadTabs();
   const { urls, skipped } = partitionTabs(tabs);
   $("summary").textContent =

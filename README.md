@@ -76,6 +76,10 @@ browsers remain available.
 If the target browser is already running, the URLs open as new tabs in its existing window
 (the host never passes `--new-window`); a window is only created if the browser isn't running.
 
+The *Close tabs after sending* option of the popup is sticky: the extension remembers your
+choice, so the checkbox keeps its state the next time you open the popup, and the tab context
+menu follows the same setting.
+
 ### Snap Firefox
 
 A confined Firefox cannot spawn programs itself; on Ubuntu it asks `xdg-desktop-portal` to start the

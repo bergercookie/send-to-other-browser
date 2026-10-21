@@ -1,4 +1,5 @@
 import { getSelectedTabs, partitionTabs } from "../lib/sendable.js";
+import { bindCloseAfterSend } from "../lib/settings.js";
 
 const $ = (id) => document.getElementById(id);
 const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
@@ -28,6 +29,7 @@ async function loadTabs() {
 }
 
 async function main() {
+  await bindCloseAfterSend($("close"), chrome.storage.local);
   const tabs = await loadTabs();
   const { urls, skipped } = partitionTabs(tabs);
   $("summary").textContent =

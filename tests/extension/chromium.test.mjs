@@ -15,6 +15,25 @@ test("Chromium build is Manifest V3 with a module service worker", () => {
   assert.equal(manifest.browser_specific_settings, undefined);
 });
 
+test("both manifests request the storage permission for the sticky setting", async () => {
+  const firefox = JSON.parse(
+    await readFile(new URL("../../extension/manifest.json", import.meta.url)),
+  );
+  for (const current of [firefox, manifest]) {
+    assert.ok(current.permissions.includes("storage"));
+  }
+});
+
+test("both popups restore the close-tabs preference from storage", async () => {
+  for (const directory of ["extension", "extension-chromium"]) {
+    const popup = await readFile(
+      new URL(`../../${directory}/popup/popup.js`, import.meta.url),
+      "utf8",
+    );
+    assert.match(popup, /bindCloseAfterSend\(\$\("close"\), (browser|chrome)\.storage\.local\)/);
+  }
+});
+
 test("Chromium build contains every referenced extension asset", async () => {
   const paths = [
     manifest.background.service_worker,
