@@ -46,12 +46,15 @@ def chromium_environment(
     executable = bin_dir / "firefox"
     executable.write_text(FAKE_BROWSER)
     executable.chmod(executable.stat().st_mode | stat.S_IXUSR)
-    destinations = {
-        "chrome": ".config/google-chrome/NativeMessagingHosts",
-        "chromium": ".config/chromium/NativeMessagingHosts",
-        "vivaldi": ".config/vivaldi/NativeMessagingHosts",
-    }
-    for browser, destination in destinations.items():
+    # Chromium reads user-level hosts from <user-data-dir>/NativeMessagingHosts, so with
+    # a custom profile the $HOME/.config locations are never consulted.
+    destinations = [
+        ("chrome", home / ".config/google-chrome/NativeMessagingHosts"),
+        ("chromium", home / ".config/chromium/NativeMessagingHosts"),
+        ("vivaldi", home / ".config/vivaldi/NativeMessagingHosts"),
+        ("chromium", tmp_path / "profile" / "NativeMessagingHosts"),
+    ]
+    for browser, destination in destinations:
         subprocess.run(
             [
                 sys.executable,
@@ -59,7 +62,7 @@ def chromium_environment(
                 "--browser",
                 browser,
                 "--dest",
-                str(home / destination),
+                str(destination),
             ],
             check=True,
             capture_output=True,
