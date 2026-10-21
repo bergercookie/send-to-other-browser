@@ -34,11 +34,11 @@ able to start the native-messaging host.
 
 | Sending browser | Native package (`.deb`/distro) | Tarball/manual install | AppImage | Snap | Flatpak |
 | --- | --- | --- | --- | --- | --- |
-| Firefox | ✅ | ✅ | ❌ | ✅ Conditional; see [Snap Firefox](#snap-firefox) | ❌ |
-| Zen Browser | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Firefox | ✅ | ✅ | ❓ | ✅ Conditional; see [Snap Firefox](#snap-firefox) | ❌ |
+| Zen Browser | ✅ | ✅ | ❓ | ❌ | ❌ |
 | LibreWolf | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Chrome / Chromium | ✅ | ✅ When its executable is on the search path | ❌ | ❌ | ❌ |
-| Vivaldi | ✅ | ✅ When its executable is on the search path | ❌ | ❌ | ❌ |
+| Chrome / Chromium | ✅ | ✅ | ❓ | ❌ | ❌ |
+| Vivaldi | ✅ | ✅ | ❓ | ❌ | ❌ |
 
 Firefox is the only supported Snap **sender**, using Ubuntu's patched native-messaging portal.
 Sandboxed Flatpak browsers cannot discover or execute this native host, and other Snap browsers do
