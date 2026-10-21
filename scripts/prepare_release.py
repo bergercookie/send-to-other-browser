@@ -4,6 +4,7 @@
 import argparse
 import json
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -18,13 +19,13 @@ VERSION_RE = re.compile(r"(?:0|[1-9]\d*)(?:\.(?:0|[1-9]\d*)){0,3}\Z")
 
 
 def run(*args: str, capture_output: bool = False) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        args,
-        cwd=ROOT,
-        check=True,
-        text=True,
-        capture_output=capture_output,
-    )
+    result = subprocess.run(args, cwd=ROOT, text=True, capture_output=True)
+    if result.returncode != 0 or not capture_output:
+        sys.stdout.write(result.stdout)
+        sys.stderr.write(result.stderr)
+    if result.returncode != 0:
+        sys.exit(f"error: `{shlex.join(args)}` failed with exit status {result.returncode}")
+    return result
 
 
 def validate_version(value: str) -> str:
@@ -79,8 +80,16 @@ def main() -> int:
 
     update_versions(version)
     run("just", "check-version", tag)
-    run("git", "add", *(str(path) for path in VERSION_FILES))
-    run("git", "commit", "-m", f"Bump version to {version}")
+    # uv.lock records the project version; left stale, the commit's `uv run` hooks rewrite it
+    # mid-commit and pre-commit aborts.
+    run("uv", "lock")
+    run("git", "add", "uv.lock", *(str(path) for path in VERSION_FILES))
+    if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=ROOT).returncode == 0:
+        print(f"Nothing to commit for new {version} version.")
+    else:
+        run("git", "commit", "-m", f"Bump version to {version}")
+
+    # do git-tag.
     run("git", "tag", tag)
     print(f"Prepared {tag}. Publish it with: git push origin HEAD {tag}")
     return 0

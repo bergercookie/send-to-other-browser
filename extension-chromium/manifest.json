@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Send to Other Browser",
-  "version": "0.3.0",
+  "version": "0.2.0",
   "description": "Send selected tabs to another installed browser.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwK3cSVwG39xlAFOAhRAZgthJudTPHemxXiz0S3qFdPIx2/OjxX1ZDJBnzvNwHW+Brk77++qLoBuaRsOUGFZjwWOkERilXP/orEcuEsXltE04Un6Z1qtIotnB6pwbp4PU0f55tmBksfWLweS5W0H+3inxi7BPNb96nZguX/4opo8KeQiwEuZO6lUOJfCLbpzYxfgMAdfto3FJycYW9GsLHDk/35BXfQUiuBm0ufE84xKb6f030KdRB8koQw48TGtWb2KXOS2sPV+JdVzu/MC03MUK9xsf9AZ0S4dXoJHlRx6uhrl3iT8kygeKFnDSTHnFGLnya5JKJnjX6MuZz/w63wIDAQAB",
   "permissions": [
