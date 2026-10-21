@@ -95,9 +95,6 @@ sending them to Vivaldi, and the error shown when the native host is not registe
 | --- | --- | --- |
 | ![Popup: 3 tabs selected, five browser buttons](docs/screenshots/popup-default.png) | ![Popup: status "Sent 3 tabs to Vivaldi."](docs/screenshots/popup-sent.png) | ![Popup: native host error with installation documentation link](docs/screenshots/popup-error.png) |
 
-They are generated from a real headless Chromium run by `just screenshots` and refreshed on
-demand by the `screenshots.yml` workflow.
-
 ## Privacy
 
 Nothing is collected or transmitted; see [PRIVACY.md](PRIVACY.md).
