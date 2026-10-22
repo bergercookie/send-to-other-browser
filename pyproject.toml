@@ -4,7 +4,7 @@
 [project]
 name = "send-to-other-browser"
 # extension/manifest.json is the authoritative version; keep this in sync.
-version = "0.3.0"
+version = "0.4.0"
 description = "Firefox and Chromium extensions with a native host for sending tabs to another browser."
 readme = "README.md"
 requires-python = ">=3.12"
