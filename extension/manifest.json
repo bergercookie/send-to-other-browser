@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Send to Other Browser",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Send the URLs of your selected tabs to another browser (Vivaldi, Chrome, Chromium, ...) running on this machine.",
   "browser_specific_settings": {
     "gecko": {
