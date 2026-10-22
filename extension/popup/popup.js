@@ -1,5 +1,6 @@
 import { getSelectedTabs, partitionTabs } from "../lib/sendable.js";
 import { bindCloseAfterSend } from "../lib/settings.js";
+import { closePopupSoon } from "../lib/popup.js";
 
 const $ = (id) => document.getElementById(id);
 const INSTALLATION_URL =
@@ -72,6 +73,8 @@ async function main() {
       });
       if (result.ok) {
         setStatus(`Sent ${plural(result.sent, "tab")} to ${b.name}.`, "ok");
+        // The tabs are on their way, no need to keep the popup around.
+        closePopupSoon({ search: location.search });
       } else {
         setStatus(result.error, "error");
       }

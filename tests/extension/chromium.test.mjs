@@ -34,6 +34,16 @@ test("both popups restore the close-tabs preference from storage", async () => {
   }
 });
 
+test("both popups close themselves after the tabs have been sent", async () => {
+  for (const directory of ["extension", "extension-chromium"]) {
+    const popup = await readFile(
+      new URL(`../../${directory}/popup/popup.js`, import.meta.url),
+      "utf8",
+    );
+    assert.match(popup, /closePopupSoon\(\{ search: location\.search \}\)/);
+  }
+});
+
 test("Chromium build contains every referenced extension asset", async () => {
   const paths = [
     manifest.background.service_worker,

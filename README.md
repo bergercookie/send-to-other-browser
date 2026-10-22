@@ -90,6 +90,9 @@ The *Close tabs after sending* option of the popup is sticky: the extension reme
 choice, so the checkbox keeps its state the next time you open the popup, and the tab context
 menu follows the same setting.
 
+Picking a browser in the popup sends the tabs and closes the popup on its own; you don't have to
+click elsewhere to dismiss it. If the send fails, the popup stays open and shows the error.
+
 ### Snap Firefox
 
 A confined Firefox cannot spawn programs itself; on Ubuntu it asks `xdg-desktop-portal` to start the

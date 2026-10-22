@@ -1,5 +1,6 @@
 import { getSelectedTabs, partitionTabs } from "../lib/sendable.js";
 import { bindCloseAfterSend } from "../lib/settings.js";
+import { closePopupSoon } from "../lib/popup.js";
 
 const $ = (id) => document.getElementById(id);
 const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
@@ -68,6 +69,10 @@ async function main() {
         result.ok ? `Sent ${plural(result.sent, "tab")} to ${browser.name}.` : result.error,
         result.ok ? "ok" : "error",
       );
+      if (result.ok) {
+        // The tabs are on their way, no need to keep the popup around.
+        closePopupSoon({ search: location.search });
+      }
     });
     $("browsers").append(button);
   }
