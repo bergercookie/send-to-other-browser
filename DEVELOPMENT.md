@@ -72,15 +72,32 @@ the E2E suites. Set `CHROMEDRIVER` when the matching driver is not available on 
 
 - `ci.yml`: runs `just ci` on pushes to `main`/`master` and pull requests.
 - `release.yml`: for `v*` tags on `main`/`master`, validates the manifest version, runs the test
-  suite, packages the artifacts, submits the Firefox extension to AMO, and creates a GitHub release.
+  suite, packages the artifacts, submits the Firefox extension to AMO, creates a GitHub release,
+  and pushes the Chromium build to the Chrome Web Store.
 - `nightly.yml`: publishes the rolling `nightly` prerelease after changes to `main`/`master`, with
   a daily scheduled run as a safety net.
 - `screenshots.yml`: on demand (`workflow_dispatch`), regenerates and commits the screenshots.
 
-Upload `send-to-other-browser-chrome-web-store-<version>.zip` to the Chrome Web Store. It omits
-the development `key` so the store can preserve the existing item's extension ID. For development,
-load `extension-chromium/` unpacked; its manifest retains the key that gives local installs the
-stable ID allowed by the native host.
+The release workflow publishes `send-to-other-browser-chrome-web-store-<version>.zip` to the
+[Chrome Web Store](https://chromewebstore.google.com/detail/aidoknmhcobkkpkgldckffccnnoadifo)
+item `aidoknmhcobkkpkgldckffccnnoadifo`. The archive omits the development `key` so the store can
+preserve the existing item's extension ID. For development, load `extension-chromium/` unpacked;
+its manifest retains the key that gives local installs the stable ID allowed by the native host.
+
+That publish step needs three repository secrets; without them the step is skipped with a warning
+and the rest of the release still happens:
+
+| Secret | Value |
+| --- | --- |
+| `CHROME_CLIENT_ID` | OAuth client ID of the "Chrome Web Store Upload" desktop app |
+| `CHROME_CLIENT_SECRET` | Client secret of that OAuth client |
+| `CHROME_REFRESH_TOKEN` | Refresh token of the Google account that owns the store item |
+
+Create the client and the refresh token with
+[chrome-webstore-upload-keys](https://github.com/fregante/chrome-webstore-upload-keys): enable the
+Chrome Web Store API in a Google Cloud project, create a desktop-app OAuth client, then run
+`npx chrome-webstore-upload-keys` to obtain the refresh token. The store only accepts a version
+higher than the one it currently serves, and it reviews every new version before publishing it.
 
 To enable Firefox publishing, create AMO API credentials and add them to the GitHub repository as
 the `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` Actions secrets. Pushing a version tag such as `v0.2.0`
