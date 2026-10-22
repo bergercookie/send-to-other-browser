@@ -81,8 +81,8 @@ the E2E suites. Set `CHROMEDRIVER` when the matching driver is not available on 
   and pushes the Chromium build to the Chrome Web Store.
 - `nightly.yml`: after changes to `main`/`master`, publishes a
   `v<release>.nightly.post<N>.<UTC timestamp>` prerelease, where `N` counts the nightlies since the
-  last `v*` release, and deletes all but the newest five nightlies. A daily scheduled run is a
-  safety net.
+  last `v*` release, starting at `0` for the first one, and deletes all but the newest five
+  nightlies. A daily scheduled run is a safety net.
 - `screenshots.yml`: on demand (`workflow_dispatch`), regenerates and commits the screenshots.
 
 The release workflow publishes `send-to-other-browser-chrome-web-store-<version>.zip` to the

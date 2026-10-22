@@ -1,8 +1,9 @@
 name: Nightly
 
 # Publishes a v<release>.nightly.post<N>.<UTC timestamp> pre-release whenever main/master has
-# commits the last nightly does not contain, where N counts nightlies since the last v* release.
-# Only the newest five nightlies are kept. The schedule is a safety net for missed pushes.
+# commits the last nightly does not contain, where N counts the nightlies since the last v* release,
+# starting at 0 for the first one. Only the newest five nightlies are kept. The schedule is a
+# safety net for missed pushes.
 on:
   push:
     branches: [main, master]
@@ -42,7 +43,12 @@ jobs:
             || echo "v$(jq -r .version extension/manifest.json)")
           # Highest N rather than a count, so pruning old nightlies never reuses a number.
           n=$(git tag --list "$release.nightly.post*" | sed -E 's/.*\.nightly\.post([0-9]+)\..*/\1/' | sort -n | tail -n1)
-          n=$(( ${n:-0} + 1 ))
+          if [ -n "$n" ]; then
+            n=$(( n + 1 ))
+          else
+            # The first nightly after a release is post0.
+            n=0
+          fi
           {
             echo "build=true"
             echo "tag=$release.nightly.post$n.$(date -u +%Y%m%dT%H%M%SZ)"
@@ -70,7 +76,7 @@ jobs:
         run: just ci
       - name: Package
         if: steps.changed.outputs.build == 'true'
-        # Extension versions allow 4 numeric parts: <release>.<N> sorts after the release.
+        # Extension versions allow 4 numeric parts: <release>.<N>, N being the nightly number.
         run: just package "${{ steps.changed.outputs.version }}"
       - name: Publish the nightly release
         if: steps.changed.outputs.build == 'true'

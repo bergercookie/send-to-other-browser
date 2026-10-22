@@ -1,22 +1,31 @@
 Privacy Policy
 ==============
 
-Last updated: 2026-10-08
+Last updated: 2026-10-22
 
 Send to Other Browser does not collect, store, sell or share any personal data.
 It has no servers, no analytics, no telemetry and no accounts.
+
+The Firefox build (addons.mozilla.org) and the Chromium build (Chrome Web Store)
+behave identically and share this policy.
 
 
 What the extension does with your data
 --------------------------------------
 
-- URLs of the tabs you select (and the tab ids/titles needed to find them).
+- URLs of the tabs you select (and the tab ids needed to find them).
   Read in order to send them to the browser you pick.
   Passed over a local pipe to the companion native host on your own computer.
 
 - Names and paths of installed browsers (Vivaldi, Chrome, Chromium, Brave, Edge).
   Read in order to show you the list of targets.
   Returned by the native host to the extension; stays on your computer.
+
+- Your choice for the "Close tabs after sending" option: a single yes/no setting.
+  Kept in the local storage of your browser profile, so the checkbox still shows
+  your choice the next time you open the popup.
+  It is never synced to your browser account, never sent anywhere, and it is the
+  only thing the extension ever stores.
 
 The URLs are read only when you click a browser button in the popup or choose
 "Send to ..." in the tab context menu, and only for the tabs you selected.
@@ -38,7 +47,11 @@ Permissions, and why
 
 - tabs: read the URLs of the tabs you selected.
 - nativeMessaging: talk to the companion host described above.
-- menus: add the "Send to ..." entry to the tab context menu.
+- menus (Firefox) / contextMenus (Chromium): add the "Send to ..." entry to the
+  tab context menu.
+- storage: remember the "Close tabs after sending" preference between openings of
+  the popup. Only that one setting is kept, in the local storage of your browser
+  profile; nothing is synced and nothing leaves your computer.
 
 The extension requests no host (website) permissions, injects no scripts into web
 pages and makes no network requests of its own.
