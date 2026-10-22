@@ -1,7 +1,8 @@
 name: Nightly
 
-# Publishes a rolling "nightly" pre-release whenever main/master has commits the
-# last nightly does not contain. The schedule is a safety net for missed pushes.
+# Publishes a v<release>.nightly.post<N>.<UTC timestamp> pre-release whenever main/master has
+# commits the last nightly does not contain, where N counts nightlies since the last v* release.
+# Only the newest five nightlies are kept. The schedule is a safety net for missed pushes.
 on:
   push:
     branches: [main, master]
@@ -24,17 +25,29 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Has anything changed since the last nightly?
         id: changed
         run: |
-          last=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/nightly" --jq .object.sha 2>/dev/null || true)
-          # An annotated tag would need dereferencing; we only ever create lightweight ones.
-          if [ "$last" = "$GITHUB_SHA" ] && [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
-            echo "Nightly already built from $GITHUB_SHA"
+          # Newest nightly by the timestamp at the end of its tag name.
+          last=$(git tag --list 'v*.nightly.post*' | awk -F. '{print $NF, $0}' | sort -r | head -n1 | cut -d' ' -f2)
+          if [ -n "$last" ] && [ "$(git rev-list -n1 "$last")" = "$GITHUB_SHA" ] \
+              && [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
+            echo "Nightly $last already built from $GITHUB_SHA"
             echo "build=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          release=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*.nightly.*' 2>/dev/null \
+            || echo "v$(jq -r .version extension/manifest.json)")
+          # Highest N rather than a count, so pruning old nightlies never reuses a number.
+          n=$(git tag --list "$release.nightly.post*" | sed -E 's/.*\.nightly\.post([0-9]+)\..*/\1/' | sort -n | tail -n1)
+          n=$(( ${n:-0} + 1 ))
+          {
+            echo "build=true"
+            echo "tag=$release.nightly.post$n.$(date -u +%Y%m%dT%H%M%SZ)"
+            echo "version=${release#v}.$n"
+          } >> "$GITHUB_OUTPUT"
       - if: steps.changed.outputs.build == 'true'
         uses: extractions/setup-just@v2
       - if: steps.changed.outputs.build == 'true'
@@ -57,12 +70,22 @@ jobs:
         run: just ci
       - name: Package
         if: steps.changed.outputs.build == 'true'
-        # Firefox versions allow 4 numeric parts: <manifest version>.<run number> sorts after the release.
-        run: just package "$(just version).${{ github.run_number }}"
-      - name: Replace the nightly release
+        # Extension versions allow 4 numeric parts: <release>.<N> sorts after the release.
+        run: just package "${{ steps.changed.outputs.version }}"
+      - name: Publish the nightly release
+        if: steps.changed.outputs.build == 'true'
+        env:
+          TAG: ${{ steps.changed.outputs.tag }}
+        run: |
+          gh release create "$TAG" dist/* --prerelease --target "$GITHUB_SHA" \
+            --title "Nightly $TAG (${GITHUB_SHA::7})" \
+            --notes "Automated build of ${GITHUB_SHA}. Unsigned; for testing only."
+      - name: Keep only the newest five nightlies
         if: steps.changed.outputs.build == 'true'
         run: |
+          # The rolling release this scheme replaced.
           gh release delete nightly --cleanup-tag --yes 2>/dev/null || true
-          gh release create nightly dist/* --prerelease --target "$GITHUB_SHA" \
-            --title "Nightly ($(date -u +%F), ${GITHUB_SHA::7})" \
-            --notes "Automated build of ${GITHUB_SHA}. Unsigned; for testing only."
+          gh release list --limit 1000 --json tagName --jq '.[].tagName' \
+            | grep -E '^v[0-9.]+\.nightly\.post[0-9]+\.[0-9]{8}T[0-9]{6}Z$' \
+            | awk -F. '{print $NF, $0}' | sort -r | tail -n +6 | cut -d' ' -f2 \
+            | while read -r tag; do gh release delete "$tag" --cleanup-tag --yes; done

@@ -79,8 +79,10 @@ the E2E suites. Set `CHROMEDRIVER` when the matching driver is not available on 
 - `release.yml`: for `v*` tags on `main`/`master`, validates the manifest version, runs the test
   suite, packages the artifacts, submits the Firefox extension to AMO, creates a GitHub release,
   and pushes the Chromium build to the Chrome Web Store.
-- `nightly.yml`: publishes the rolling `nightly` prerelease after changes to `main`/`master`, with
-  a daily scheduled run as a safety net.
+- `nightly.yml`: after changes to `main`/`master`, publishes a
+  `v<release>.nightly.post<N>.<UTC timestamp>` prerelease, where `N` counts the nightlies since the
+  last `v*` release, and deletes all but the newest five nightlies. A daily scheduled run is a
+  safety net.
 - `screenshots.yml`: on demand (`workflow_dispatch`), regenerates and commits the screenshots.
 
 The release workflow publishes `send-to-other-browser-chrome-web-store-<version>.zip` to the
