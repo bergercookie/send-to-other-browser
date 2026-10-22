@@ -355,11 +355,32 @@ def test_install_chromium_native_manifest(browser: str) -> None:
         assert "allowed_extensions" not in manifest
 
 
+@pytest.mark.parametrize("browser", ["chrome", "chromium", "vivaldi"])
+def test_install_chromium_native_manifest_debug(browser: str) -> None:
+    with tempfile.TemporaryDirectory() as d:
+        dest = Path(d) / "nmh"
+        assert install.main(["--browser", browser, "--debug", "--dest", str(dest)]) == 0
+        manifest = json.loads((dest / "send_to_other_browser.json").read_text())
+        assert manifest["allowed_origins"] == [
+            f"chrome-extension://{install.CHROMIUM_DEBUG_EXTENSION_ID}/"
+        ]
+        assert "allowed_extensions" not in manifest
+
+
 @pytest.mark.parametrize("browser", ["firefox", "zen", "librewolf"])
 def test_install_gecko_native_manifest(browser: str) -> None:
     with tempfile.TemporaryDirectory() as directory:
         dest = Path(directory) / "nmh"
         assert install.main(["--browser", browser, "--dest", str(dest)]) == 0
+        manifest = json.loads((dest / "send_to_other_browser.json").read_text())
+        assert manifest["allowed_extensions"] == [install.FIREFOX_EXTENSION_ID]
+        assert "allowed_origins" not in manifest
+
+
+def test_debug_flag_leaves_the_gecko_manifest_alone() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        dest = Path(directory) / "nmh"
+        assert install.main(["--browser", "firefox", "--debug", "--dest", str(dest)]) == 0
         manifest = json.loads((dest / "send_to_other_browser.json").read_text())
         assert manifest["allowed_extensions"] == [install.FIREFOX_EXTENSION_ID]
         assert "allowed_origins" not in manifest
@@ -388,4 +409,4 @@ def test_chromium_extension_id_matches_installer() -> None:
     manifest = json.loads((ROOT / "extension-chromium" / "manifest.json").read_text())
     digest = hashlib.sha256(base64.b64decode(manifest["key"])).digest()[:16]
     extension_id = "".join(chr(ord("a") + nibble) for byte in digest for nibble in divmod(byte, 16))
-    assert extension_id == install.CHROMIUM_EXTENSION_ID
+    assert extension_id == install.CHROMIUM_DEBUG_EXTENSION_ID

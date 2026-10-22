@@ -32,10 +32,10 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "host"))
-from install import CHROMIUM_EXTENSION_ID  # noqa: E402
+from install import CHROMIUM_DEBUG_EXTENSION_ID  # noqa: E402
 from install import HOST_NAME  # noqa: E402
 
-POPUP_URL = f"chrome-extension://{CHROMIUM_EXTENSION_ID}/popup/popup.html"
+POPUP_URL = f"chrome-extension://{CHROMIUM_DEBUG_EXTENSION_ID}/popup/popup.html"
 
 # Body width the popup gets in a real popup panel (popup.css min-width). Opened
 # in a tab instead, the body would stretch across the whole window, so the width
@@ -90,8 +90,10 @@ def make_home(base: Path) -> tuple[Path, dict[str, str | float | bool]]:
             str(ROOT / "host" / "install.py"),
             "--browser",
             "chromium",
+            # The screenshots use the unpacked development build.
+            "--debug",
             "--dest",
-            str(home / ".config" / "chromium" / "NativeMessagingHosts"),
+            str(home / ".config/chromium/NativeMessagingHosts"),
         ],
         check=True,
         capture_output=True,

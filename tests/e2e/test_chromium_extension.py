@@ -12,11 +12,13 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+from install import CHROMIUM_DEBUG_EXTENSION_ID
 from playwright.sync_api import BrowserContext
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[2]
-EXTENSION_ID = "loagchgjndmjgeopkhjlamacnkbenajk"
+# The unpacked development build of the Chromium extension.
+EXTENSION_ID = CHROMIUM_DEBUG_EXTENSION_ID
 POPUP_URL = f"chrome-extension://{EXTENSION_ID}/popup/popup.html"
 
 FAKE_BROWSER = """#!/bin/sh
@@ -61,6 +63,8 @@ def chromium_environment(
                 str(ROOT / "host" / "install.py"),
                 "--browser",
                 browser,
+                # The test runs the unpacked development build.
+                "--debug",
                 "--dest",
                 str(destination),
             ],

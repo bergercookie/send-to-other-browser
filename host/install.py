@@ -4,6 +4,7 @@
 install.py                 # install for Firefox, Chrome, Chromium, and Vivaldi
 install.py --uninstall
 install.py --browser chrome
+install.py --debug         # allow the unpacked development build of the Chromium extension
 install.py --browser firefox --dest DIR  # custom directory (used by tests)
 """
 
@@ -17,7 +18,10 @@ from typing import Any
 
 HOST_NAME = "send_to_other_browser"
 FIREFOX_EXTENSION_ID = "send-to-other-browser@bergercookie"
-CHROMIUM_EXTENSION_ID = "loagchgjndmjgeopkhjlamacnkbenajk"
+# The Chrome Web Store item: the extension installed from the store runs under this id.
+CHROMIUM_EXTENSION_ID = "aidoknmhcobkkpkgldckffccnnoadifo"
+# The unpacked development build (extension-chromium/manifest.json "key"); --debug registers it.
+CHROMIUM_DEBUG_EXTENSION_ID = "loagchgjndmjgeopkhjlamacnkbenajk"
 # Kept as an alias for clients/tests written before Chromium support.
 EXTENSION_ID = FIREFOX_EXTENSION_ID
 HERE = Path(__file__).resolve().parent
@@ -43,7 +47,9 @@ def default_dest(browser: str) -> Path:
     return Path.home() / BROWSER_DESTINATIONS[browser]
 
 
-def build_manifest(host_path: Path, browser: str = "firefox") -> dict[str, Any]:
+def build_manifest(
+    host_path: Path, browser: str = "firefox", debug: bool = False
+) -> dict[str, Any]:
     manifest: dict[str, Any] = {
         "name": HOST_NAME,
         "description": "Opens URLs from the Send to Other Browser extension in Firefox, Vivaldi, Chrome, ...",
@@ -53,18 +59,21 @@ def build_manifest(host_path: Path, browser: str = "firefox") -> dict[str, Any]:
     if browser in GECKO_BROWSERS:
         manifest["allowed_extensions"] = [FIREFOX_EXTENSION_ID]
     else:
-        manifest["allowed_origins"] = [f"chrome-extension://{CHROMIUM_EXTENSION_ID}/"]
+        extension_id = CHROMIUM_DEBUG_EXTENSION_ID if debug else CHROMIUM_EXTENSION_ID
+        manifest["allowed_origins"] = [f"chrome-extension://{extension_id}/"]
     return manifest
 
 
-def install_manifest(dest: Path, host: Path, browser: str, uninstall: bool) -> None:
+def install_manifest(
+    dest: Path, host: Path, browser: str, uninstall: bool, debug: bool = False
+) -> None:
     target = dest / f"{HOST_NAME}.json"
     if uninstall:
         target.unlink(missing_ok=True)
         print(f"removed {target}")
         return
     dest.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(build_manifest(host, browser), indent=2) + "\n")
+    target.write_text(json.dumps(build_manifest(host, browser, debug), indent=2) + "\n")
     print(f"installed {target} -> {host}")
 
 
@@ -79,6 +88,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="default: all (Firefox for --dest)",
     )
     parser.add_argument("--host", type=Path, default=HERE / "send_to_other_browser.py")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="allow the unpacked development build of the Chromium extension "
+        "(its own extension id) instead of the Chrome Web Store one",
+    )
     parser.add_argument("--uninstall", action="store_true")
     args = parser.parse_args(argv)
 
@@ -94,7 +109,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         os.chmod(host, host.stat().st_mode | 0o111)
     browsers = list(BROWSER_DESTINATIONS) if browser == "all" else [browser]
     for current in browsers:
-        install_manifest(args.dest or default_dest(current), host, current, args.uninstall)
+        install_manifest(
+            args.dest or default_dest(current), host, current, args.uninstall, args.debug
+        )
     if Path("/snap/bin/firefox").exists():
         print(SNAP_NOTE)
     return 0

@@ -23,8 +23,12 @@ All lint checks live in [`.pre-commit-config.yaml`](.pre-commit-config.yaml): `r
 Register the native host before testing browser-to-browser sending:
 
 ```sh
-python3 host/install.py
+just install-host --debug
 ```
+
+`--debug` allows the unpacked development build of the Chromium extension, which runs under its own
+extension id. Without it the installer allows the build installed from the Chrome Web Store, the
+one the users of the released extension have.
 
 ### Firefox
 
@@ -57,6 +61,7 @@ Use the extension's **Reload** button on that page after changing its JavaScript
 | Recipe | What |
 | --- | --- |
 | `just setup` | `uv sync`: create `.venv` and install the development dependencies |
+| `just install-host [--debug]` | Register the native host for the supported browsers |
 | `just lint` | Run every lint check through pre-commit |
 | `just test-unit` | Run Python host and Node.js extension unit tests |
 | `just test-package` | Run `just package` in isolation and verify all release archives |

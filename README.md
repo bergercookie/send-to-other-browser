@@ -16,8 +16,7 @@ The native host requires Linux and Python 3; it has no third-party Python depend
 
 1. Install the extension:
     * [Firefox extension from Mozilla Add-ons](https://addons.mozilla.org/en-US/firefox/addon/ff-send-to-other-browser/) (for Firefox, Zen, LibreWolf) or
-    * [Chromium extension from the Chrome Web Store](https://chromewebstore.google.com/detail/aidoknmhcobkkpkgldckffccnnoadifo) (for Chrome, Chromium, Vivaldi) or
-    * Chromium extension zip from the [GitHub releases](https://github.com/bergercookie/firefox-send-to-other-browser/releases).
+    * [Chromium extension from the Chrome Web Store](https://chromewebstore.google.com/detail/aidoknmhcobkkpkgldckffccnnoadifo) (for Chrome, Chromium, Vivaldi).
 2. Download the native-host archive from the
    [GitHub releases](https://github.com/bergercookie/firefox-send-to-other-browser/releases),
    extract it, and run the included installer. It registers the host for Firefox, Zen Browser,
@@ -34,6 +33,9 @@ The Chromium build is listed on the
 [Chrome Web Store](https://chromewebstore.google.com/detail/aidoknmhcobkkpkgldckffccnnoadifo).
 Every tagged release is pushed to the store automatically; the store then reviews the new version
 before it reaches the users, so it shows up a few hours after the release.
+
+Sideloading the Chromium zip from the GitHub releases instead gives the extension a random id,
+which the native host does not allow; install it from the store.
 
 ## Supported browsers and installations
 

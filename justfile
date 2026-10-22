@@ -53,8 +53,10 @@ ci: lint test
 # --- run it ------------------------------------------------------------------
 
 # Register the host for Firefox, Chrome, Chromium, and Vivaldi.
-install-host:
-    python3 host/install.py
+# Pass --debug to allow the unpacked development build of the Chromium extension
+# instead of the one installed from the Chrome Web Store.
+install-host *flags:
+    python3 host/install.py {{flags}}
 
 uninstall-host:
     python3 host/install.py --uninstall
